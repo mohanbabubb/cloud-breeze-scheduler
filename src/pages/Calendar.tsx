@@ -20,6 +20,13 @@ export default function CalendarPage() {
       <Header />
       
       <main className="flex-1 px-4 sm:px-6 pt-20 pb-12">
+        <div className="max-w-6xl mx-auto mb-6">
+          <h1 className="text-3xl font-bold">Staff Roster Scheduler</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage employee shifts across 7 counters in your supermarket, 24/7
+          </p>
+        </div>
+        
         <div className={cn(
           "w-full transition-all duration-500",
           isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
@@ -30,7 +37,7 @@ export default function CalendarPage() {
       
       <footer className="border-t py-6">
         <div className="container text-center text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} Calendar App. All rights reserved.
+          &copy; {new Date().getFullYear()} Supermarket Roster Scheduler. All rights reserved.
         </div>
       </footer>
     </div>
