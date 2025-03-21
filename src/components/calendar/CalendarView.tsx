@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from 'react';
 import { MonthView } from '@/components/calendar/MonthView';
+import { DayView } from '@/components/calendar/DayView';
 import { CalendarHeader } from '@/components/calendar/CalendarHeader';
 import { ShiftModal } from '@/components/calendar/ShiftModal';
 import { Button } from '@/components/ui/button';
-import { Plus, UserPlus, Building2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { CalendarEvent, ViewType } from '@/utils/calendarHelpers';
 import { Shift, generateSampleShifts } from '@/utils/rosterHelpers';
 import { useTransition } from '@/utils/animations';
@@ -98,9 +99,12 @@ export function CalendarView({ className }: CalendarViewProps) {
             );
           case 'day':
             return (
-              <div className="flex items-center justify-center h-96 bg-card rounded-lg">
-                <p className="text-muted-foreground">Day view coming soon</p>
-              </div>
+              <DayView
+                currentDate={currentDate}
+                events={shifts as CalendarEvent[]}
+                onEventClick={handleShiftClick as (event: CalendarEvent) => void}
+                transitionState={shouldAnimateView ? 'from' : 'to'}
+              />
             );
           default:
             return null;

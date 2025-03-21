@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -54,6 +53,7 @@ export function CalendarHeader({
   
   const handleToday = () => {
     onDateChange(new Date());
+    handleViewChange('day');
   };
   
   const handleViewChange = (newView: ViewType) => {
