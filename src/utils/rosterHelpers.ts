@@ -19,6 +19,16 @@ export interface Shift extends CalendarEvent {
   counterId: string;
 }
 
+// Default colors for employees and events
+export const DEFAULT_EVENT_COLORS = [
+  'bg-blue-100 text-blue-600 border-blue-200',
+  'bg-purple-100 text-purple-600 border-purple-200',
+  'bg-green-100 text-green-600 border-green-200',
+  'bg-amber-100 text-amber-600 border-amber-200',
+  'bg-red-100 text-red-600 border-red-200',
+  'bg-indigo-100 text-indigo-600 border-indigo-200',
+];
+
 // Sample employees
 export const SAMPLE_EMPLOYEES: Employee[] = [
   { id: '1', name: 'John Smith', position: 'Cashier', color: 'bg-blue-100 text-blue-600 border-blue-200' },
