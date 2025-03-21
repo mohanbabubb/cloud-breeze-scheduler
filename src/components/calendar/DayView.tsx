@@ -1,10 +1,12 @@
 
 import { useState, useEffect } from 'react';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, setHours, setMinutes, addMinutes } from 'date-fns';
 import { CalendarEvent } from '@/utils/calendarHelpers';
 import { CalendarEventItem } from '@/components/ui/CalendarEvent';
 import { cn } from '@/lib/utils';
 import { getTransitionClasses } from '@/utils/animations';
+import { SAMPLE_COUNTERS, Shift } from '@/utils/rosterHelpers';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 
 interface DayViewProps {
   currentDate: Date;
@@ -22,25 +24,48 @@ export function DayView({
   transitionState = 'to'
 }: DayViewProps) {
   const [dayEvents, setDayEvents] = useState<CalendarEvent[]>([]);
-  const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [timeSlots, setTimeSlots] = useState<Date[]>([]);
   
-  // Filter events for the current day
+  // Generate time slots for every 45 minutes
   useEffect(() => {
+    const slots: Date[] = [];
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    // Generate time slots for every 45 minutes (32 slots in a day)
+    for (let i = 0; i < 32; i++) {
+      slots.push(addMinutes(startOfDay, i * 45));
+    }
+    
+    setTimeSlots(slots);
+    
+    // Filter events for the current day
     const filteredEvents = events.filter(event => 
       isSameDay(event.start, currentDate)
     );
     
-    // Sort events by start time
-    filteredEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
     setDayEvents(filteredEvents);
-    
-    // Generate time slots for the day (24 hours)
-    const slots = [];
-    for (let i = 0; i < 24; i++) {
-      slots.push(`${i.toString().padStart(2, '0')}:00`);
-    }
-    setTimeSlots(slots);
   }, [currentDate, events]);
+  
+  // Find event for a specific counter and time slot
+  const findEvent = (counterId: string, timeSlot: Date) => {
+    return dayEvents.find(event => {
+      const shift = event as Shift;
+      if (shift.counterId !== counterId) return false;
+      
+      const eventStart = new Date(event.start);
+      const eventEnd = new Date(event.end);
+      const slotTime = new Date(timeSlot);
+      const slotEnd = addMinutes(slotTime, 45);
+      
+      // Check if the time slot overlaps with the event
+      return (
+        (slotTime >= eventStart && slotTime < eventEnd) ||
+        (slotEnd > eventStart && slotEnd <= eventEnd) ||
+        (eventStart >= slotTime && eventStart < slotEnd)
+      );
+    });
+  };
   
   return (
     <div 
@@ -54,64 +79,52 @@ export function DayView({
         <h2 className="text-xl font-semibold">
           {format(currentDate, 'EEEE, MMMM d, yyyy')}
         </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Counter schedule view (45-minute intervals)
+        </p>
       </div>
       
-      <div className="flex h-[600px] overflow-y-auto">
-        {/* Time slots column */}
-        <div className="w-20 flex-shrink-0 border-r bg-secondary/40">
-          {timeSlots.map((timeSlot) => (
-            <div 
-              key={timeSlot} 
-              className="h-20 border-b px-2 py-1 text-xs text-muted-foreground flex items-start justify-end pr-2"
-            >
-              {timeSlot}
-            </div>
-          ))}
-        </div>
-        
-        {/* Events column */}
-        <div className="flex-grow relative">
-          {/* Time slot grid lines */}
-          {timeSlots.map((timeSlot) => (
-            <div 
-              key={timeSlot} 
-              className="h-20 border-b w-full"
-            />
-          ))}
-          
-          {/* Events */}
-          <div className="absolute top-0 left-0 w-full h-full p-1">
-            {dayEvents.map((event) => {
-              // Calculate position based on time
-              const startHour = event.start.getHours();
-              const startMinute = event.start.getMinutes();
-              const endHour = event.end.getHours();
-              const endMinute = event.end.getMinutes();
-              
-              const startPosition = (startHour + startMinute / 60) * 80; // 80px per hour
-              const endPosition = (endHour + endMinute / 60) * 80;
-              const eventHeight = endPosition - startPosition;
-              
-              return (
-                <div
-                  key={event.id}
-                  className="absolute left-1 right-1 px-1"
-                  style={{
-                    top: `${startPosition}px`,
-                    height: `${eventHeight}px`,
-                    minHeight: '30px'
-                  }}
-                >
-                  <CalendarEventItem
-                    event={event}
-                    onClick={onEventClick}
-                    showTime
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-40">Counter</TableHead>
+              {timeSlots.map((slot, index) => (
+                <TableHead key={index} className="min-w-[100px] text-center">
+                  {format(slot, 'HH:mm')}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {SAMPLE_COUNTERS.map(counter => (
+              <TableRow key={counter.id}>
+                <TableCell className="font-medium">
+                  <div>
+                    <div className="font-semibold">{counter.name}</div>
+                    {counter.description && (
+                      <div className="text-xs text-muted-foreground">{counter.description}</div>
+                    )}
+                  </div>
+                </TableCell>
+                {timeSlots.map((slot, index) => {
+                  const event = findEvent(counter.id, slot);
+                  return (
+                    <TableCell key={index} className="p-1 border-l">
+                      {event ? (
+                        <CalendarEventItem
+                          event={event}
+                          onClick={onEventClick}
+                          isCompact={true}
+                        />
+                      ) : null}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

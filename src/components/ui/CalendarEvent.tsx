@@ -21,7 +21,7 @@ export function CalendarEventItem({ event, onClick, isCompact = false, showTime 
     <div
       className={cn(
         'rounded-md border px-2 py-1 text-xs font-medium cursor-pointer transition-all hover:opacity-80',
-        isCompact ? 'truncate' : 'space-y-1',
+        isCompact ? 'truncate text-[10px] py-0.5' : 'space-y-1',
         event.color || 'bg-blue-100 text-blue-600 border-blue-200'
       )}
       onClick={handleClick}
