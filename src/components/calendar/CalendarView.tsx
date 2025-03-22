@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { MonthView } from '@/components/calendar/MonthView';
 import { DayView } from '@/components/calendar/DayView';
@@ -12,6 +13,9 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmployeeManagement } from '@/components/roster/EmployeeManagement';
 import { CounterManagement } from '@/components/roster/CounterManagement';
+import { HistoryView } from '@/components/roster/HistoryView';
+import { addHistoryEntry } from '@/utils/historyHelpers';
+import { toast } from 'sonner';
 
 interface CalendarViewProps {
   className?: string;
@@ -55,17 +59,35 @@ export function CalendarView({ className }: CalendarViewProps) {
   const handleSaveShift = (shift: Shift) => {
     if (shifts.some(s => s.id === shift.id)) {
       // Update existing shift
+      const oldShift = shifts.find(s => s.id === shift.id);
       setShifts(shifts.map(s => s.id === shift.id ? shift : s));
+      
+      // Log to history
+      if (oldShift) {
+        addHistoryEntry('update', oldShift, shift);
+        toast.success('Shift updated and logged to history');
+      }
     } else {
       // Add new shift
       setShifts([...shifts, shift]);
+      
+      // Log to history
+      addHistoryEntry('create', undefined, shift);
+      toast.success('Shift created and logged to history');
     }
   };
   
   // Handle event update from drag-and-drop
   const handleEventUpdate = (updatedEvent: CalendarEvent) => {
     const updatedShift = updatedEvent as Shift;
+    const oldShift = shifts.find(s => s.id === updatedShift.id);
     setShifts(shifts.map(s => s.id === updatedShift.id ? updatedShift : s));
+    
+    // Log to history
+    if (oldShift) {
+      addHistoryEntry('update', oldShift, updatedShift);
+      toast.success('Shift moved and logged to history');
+    }
   };
   
   // Handle shift click
@@ -79,6 +101,16 @@ export function CalendarView({ className }: CalendarViewProps) {
     setSelectedDate(date);
     setSelectedShift(undefined);
     setIsShiftModalOpen(true);
+  };
+  
+  // Handle shift deletion
+  const handleDeleteShift = (shiftId: string) => {
+    const shiftToDelete = shifts.find(s => s.id === shiftId);
+    if (shiftToDelete) {
+      setShifts(shifts.filter(s => s.id !== shiftId));
+      addHistoryEntry('delete', shiftToDelete);
+      toast.success('Shift deleted and logged to history');
+    }
   };
   
   // Render appropriate view
@@ -119,6 +151,8 @@ export function CalendarView({ className }: CalendarViewProps) {
         return <EmployeeManagement />;
       case 'counters':
         return <CounterManagement />;
+      case 'history':
+        return <HistoryView />;
       default:
         return null;
     }
@@ -131,6 +165,7 @@ export function CalendarView({ className }: CalendarViewProps) {
           <TabsTrigger value="roster">Roster Schedule</TabsTrigger>
           <TabsTrigger value="employees">Employees</TabsTrigger>
           <TabsTrigger value="counters">Counters</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
       </Tabs>
       
@@ -163,6 +198,7 @@ export function CalendarView({ className }: CalendarViewProps) {
         isOpen={isShiftModalOpen}
         onClose={() => setIsShiftModalOpen(false)}
         onSave={handleSaveShift}
+        onDelete={handleDeleteShift}
         shift={selectedShift}
         selectedDate={selectedDate}
       />

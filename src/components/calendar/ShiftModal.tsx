@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,16 +7,18 @@ import { Shift, SAMPLE_EMPLOYEES, SAMPLE_COUNTERS } from '@/utils/rosterHelpers'
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { Trash2 } from 'lucide-react';
 
 interface ShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
+  onDelete?: (shiftId: string) => void;
   shift?: Shift;
   selectedDate?: Date;
 }
 
-export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: ShiftModalProps) {
+export function ShiftModal({ isOpen, onClose, onSave, onDelete, shift, selectedDate }: ShiftModalProps) {
   const [employeeId, setEmployeeId] = useState('');
   const [counterId, setCounterId] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -25,7 +26,6 @@ export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: Shi
   const [endDate, setEndDate] = useState('');
   const [endTime, setEndTime] = useState('');
   
-  // Initialize form when modal opens or shift changes
   useEffect(() => {
     if (isOpen) {
       if (shift) {
@@ -36,7 +36,6 @@ export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: Shi
         setEndDate(format(shift.end, 'yyyy-MM-dd'));
         setEndTime(format(shift.end, 'HH:mm'));
       } else {
-        // Reset form and use selected date if provided
         setEmployeeId(SAMPLE_EMPLOYEES[0].id);
         setCounterId(SAMPLE_COUNTERS[0].id);
         const dateToUse = selectedDate || new Date();
@@ -56,11 +55,9 @@ export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: Shi
     
     if (!employee || !counter) return;
     
-    // Create date objects from form inputs
     const startDateTime = new Date(`${startDate}T${startTime}`);
     const endDateTime = new Date(`${endDate}T${endTime}`);
     
-    // Create new shift object
     const newShift: Shift = {
       id: shift?.id || crypto.randomUUID(),
       title: `${employee.name} - ${counter.name}`,
@@ -77,6 +74,13 @@ export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: Shi
     onClose();
   };
   
+  const handleDelete = () => {
+    if (shift && onDelete) {
+      onDelete(shift.id);
+      onClose();
+    }
+  };
+  
   const selectedEmployee = SAMPLE_EMPLOYEES.find(e => e.id === employeeId);
   
   return (
@@ -86,6 +90,9 @@ export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: Shi
           <DialogTitle className="text-xl">
             {shift ? 'Edit Shift' : 'New Shift'}
           </DialogTitle>
+          <DialogDescription>
+            {shift ? 'Update employee shift details' : 'Assign an employee to a counter shift'}
+          </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -195,17 +202,31 @@ export function ShiftModal({ isOpen, onClose, onSave, shift, selectedDate }: Shi
           )}
           
           <DialogFooter className="mt-6">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose}
-              className="mr-2"
-            >
-              Cancel
-            </Button>
-            <Button type="submit">
-              {shift ? 'Update Shift' : 'Create Shift'}
-            </Button>
+            <div className="flex w-full justify-between items-center">
+              {shift && onDelete && (
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  onClick={handleDelete}
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+              )}
+              <div className="ml-auto flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={onClose}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {shift ? 'Update' : 'Create'}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
