@@ -12,6 +12,8 @@ export interface HistoryEntry {
   newStart?: Date;
   newEnd?: Date;
   details: string;
+  oldShift?: Shift;
+  newShift?: Shift;
 }
 
 // Initialize with empty history
@@ -30,6 +32,8 @@ export const addHistoryEntry = (
     employeeName: newShift?.title.split(" - ")[0] || oldShift?.title.split(" - ")[0] || "Unknown",
     counterName: newShift?.location || oldShift?.location || "Unknown",
     details: generateHistoryDetails(actionType, oldShift, newShift),
+    oldShift: oldShift ? { ...oldShift } : undefined,
+    newShift: newShift ? { ...newShift } : undefined,
   };
 
   if (actionType === "update" && oldShift && newShift) {
@@ -52,6 +56,36 @@ export const addHistoryEntry = (
 // Function to get history entries
 export const getHistoryEntries = (): HistoryEntry[] => {
   return shiftHistory;
+};
+
+// Function to get the last history entry
+export const getLastHistoryEntry = (): HistoryEntry | null => {
+  return shiftHistory.length > 0 ? shiftHistory[0] : null;
+};
+
+// Function to undo the last action
+export const undoLastAction = (): { 
+  success: boolean; 
+  actionType?: "create" | "update" | "delete";
+  oldShift?: Shift;
+  newShift?: Shift;
+} => {
+  if (shiftHistory.length === 0) {
+    return { success: false };
+  }
+  
+  const lastEntry = shiftHistory[0];
+  
+  // Remove the entry from history
+  shiftHistory = shiftHistory.slice(1);
+  
+  // Return appropriate data based on the action type
+  return {
+    success: true,
+    actionType: lastEntry.actionType,
+    oldShift: lastEntry.oldShift,
+    newShift: lastEntry.newShift
+  };
 };
 
 // Helper to generate human-readable description

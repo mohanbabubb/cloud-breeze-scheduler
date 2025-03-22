@@ -8,6 +8,11 @@ import { getTransitionClasses } from '@/utils/animations';
 import { SAMPLE_COUNTERS, Shift } from '@/utils/rosterHelpers';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { Slider } from '@/components/ui/slider';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Plus, Edit, Trash2, Undo } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { addHistoryEntry, getLastHistoryEntry, undoLastAction } from '@/utils/historyHelpers';
 
 interface DayViewProps {
   currentDate: Date;
@@ -16,6 +21,8 @@ interface DayViewProps {
   className?: string;
   transitionState?: 'from' | 'to';
   onEventUpdate?: (updatedEvent: CalendarEvent) => void;
+  onEventDelete?: (eventId: string) => void;
+  onEventCreate?: (counterId: string, timeSlot: Date) => void;
 }
 
 export function DayView({
@@ -24,21 +31,28 @@ export function DayView({
   onEventClick,
   className,
   transitionState = 'to',
-  onEventUpdate
+  onEventUpdate,
+  onEventDelete,
+  onEventCreate
 }: DayViewProps) {
   const [dayEvents, setDayEvents] = useState<CalendarEvent[]>([]);
   const [timeSlots, setTimeSlots] = useState<Date[]>([]);
   const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
+  const [columnWidth, setColumnWidth] = useState(100);
+  const [timeInterval, setTimeInterval] = useState(45); // Default 45 minutes
   
-  // Generate time slots for every 45 minutes
+  // Generate time slots based on selected interval
   useEffect(() => {
     const slots: Date[] = [];
     const startOfDay = new Date(currentDate);
     startOfDay.setHours(0, 0, 0, 0);
     
-    // Generate time slots for every 45 minutes (32 slots in a day)
-    for (let i = 0; i < 32; i++) {
-      slots.push(addMinutes(startOfDay, i * 45));
+    // Calculate how many slots we need based on the interval
+    const minutesInDay = 24 * 60;
+    const numSlots = Math.ceil(minutesInDay / timeInterval);
+    
+    for (let i = 0; i < numSlots; i++) {
+      slots.push(addMinutes(startOfDay, i * timeInterval));
     }
     
     setTimeSlots(slots);
@@ -49,7 +63,20 @@ export function DayView({
     );
     
     setDayEvents(filteredEvents);
-  }, [currentDate, events]);
+  }, [currentDate, events, timeInterval]);
+  
+  // Calculate time interval based on slider value
+  const handleTimeIntervalChange = (value: number[]) => {
+    const intervals = [15, 30, 45, 60, 120, 240, 480]; // 15min, 30min, 45min, 1hr, 2hr, 4hr, 8hr
+    const selectedInterval = intervals[value[0]];
+    setTimeInterval(selectedInterval);
+    
+    // Adjust column width based on the interval
+    // Larger intervals should have wider columns
+    const baseWidth = 60;
+    const widths = [baseWidth, baseWidth * 1.2, baseWidth * 1.5, baseWidth * 2, baseWidth * 3, baseWidth * 4, baseWidth * 5];
+    setColumnWidth(widths[value[0]]);
+  };
   
   // Find event for a specific counter and time slot
   const findEvent = (counterId: string, timeSlot: Date) => {
@@ -60,7 +87,7 @@ export function DayView({
       const eventStart = new Date(event.start);
       const eventEnd = new Date(event.end);
       const slotTime = new Date(timeSlot);
-      const slotEnd = addMinutes(slotTime, 45);
+      const slotEnd = addMinutes(slotTime, timeInterval);
       
       // Check if the time slot overlaps with the event
       return (
@@ -69,6 +96,22 @@ export function DayView({
         (eventStart >= slotTime && eventStart < slotEnd)
       );
     });
+  };
+  
+  // Check if there's already an event for this counter and time slot from a different employee
+  const hasConflict = (counterId: string, timeSlot: Date, currentEvent?: CalendarEvent) => {
+    const existingEvent = findEvent(counterId, timeSlot);
+    
+    if (!existingEvent || !currentEvent) return false;
+    
+    // If it's the same event, there's no conflict
+    if (existingEvent.id === currentEvent.id) return false;
+    
+    const existingShift = existingEvent as Shift;
+    const currentShift = currentEvent as Shift;
+    
+    // If they're from different employees, there's a conflict
+    return existingShift.employeeId !== currentShift.employeeId;
   };
   
   const handleDragStart = (e: React.DragEvent, event: CalendarEvent) => {
@@ -108,8 +151,16 @@ export function DayView({
         ...(originalEvent as Shift).counterId ? { counterId } : {}
       };
       
+      // Check for conflicts
+      if (hasConflict(counterId, timeSlot, originalEvent)) {
+        toast.error("Cannot assign: Another employee is already assigned to this counter at this time");
+        return;
+      }
+      
       // Update the event through callback
       if (onEventUpdate) {
+        // Store the original event for history tracking
+        addHistoryEntry("update", originalEvent as Shift, updatedEvent as Shift);
         onEventUpdate(updatedEvent);
         toast.success("Shift updated successfully");
       }
@@ -118,6 +169,31 @@ export function DayView({
       toast.error("Failed to update shift");
     } finally {
       setDraggedEvent(null);
+    }
+  };
+  
+  const handleUndo = () => {
+    const lastEntry = getLastHistoryEntry();
+    if (!lastEntry) {
+      toast.info("Nothing to undo");
+      return;
+    }
+    
+    const result = undoLastAction();
+    
+    if (result.success) {
+      if (result.actionType === "create" && onEventDelete && result.oldShift) {
+        onEventDelete(result.oldShift.id);
+      } else if (result.actionType === "update" && onEventUpdate && result.oldShift) {
+        onEventUpdate(result.oldShift);
+      } else if (result.actionType === "delete" && result.oldShift) {
+        if (onEventUpdate) {
+          onEventUpdate(result.oldShift);
+        }
+      }
+      toast.success("Action undone successfully");
+    } else {
+      toast.error("Failed to undo the last action");
     }
   };
   
@@ -130,12 +206,48 @@ export function DayView({
       )}
     >
       <div className="p-4 bg-secondary/80 border-b">
-        <h2 className="text-xl font-semibold">
-          {format(currentDate, 'EEEE, MMMM d, yyyy')}
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Counter schedule view (45-minute intervals) - Drag shifts to update time or counter
-        </p>
+        <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+          <div>
+            <h2 className="text-xl font-semibold">
+              {format(currentDate, 'EEEE, MMMM d, yyyy')}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Counter schedule view ({timeInterval}-minute intervals) - Drag shifts to update time or counter
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="flex flex-col flex-1 md:w-64">
+              <span className="text-sm mb-1">Time interval:</span>
+              <Slider
+                defaultValue={[2]} // Default to 45 minutes (index 2)
+                max={6} // 7 options from 15min to 8hr
+                step={1}
+                onValueChange={handleTimeIntervalChange}
+                className="my-2"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>15m</span>
+                <span>30m</span>
+                <span>45m</span>
+                <span>1h</span>
+                <span>2h</span>
+                <span>4h</span>
+                <span>8h</span>
+              </div>
+            </div>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleUndo}
+              className="flex items-center gap-1"
+            >
+              <Undo className="h-4 w-4" />
+              Undo
+            </Button>
+          </div>
+        </div>
       </div>
       
       <div className="overflow-x-auto">
@@ -144,7 +256,11 @@ export function DayView({
             <TableRow>
               <TableHead className="w-40">Counter</TableHead>
               {timeSlots.map((slot, index) => (
-                <TableHead key={index} className="min-w-[100px] text-center">
+                <TableHead 
+                  key={index} 
+                  className="text-center"
+                  style={{ minWidth: `${columnWidth}px` }}
+                >
                   {format(slot, 'HH:mm')}
                 </TableHead>
               ))}
@@ -172,16 +288,59 @@ export function DayView({
                       )}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, counter.id, slot)}
+                      style={{ minWidth: `${columnWidth}px` }}
                     >
-                      {event ? (
-                        <CalendarEventItem
-                          event={event}
-                          onClick={onEventClick}
-                          isCompact={true}
-                          isDraggable={true}
-                          onDragStart={handleDragStart}
-                        />
-                      ) : null}
+                      <ContextMenu>
+                        <ContextMenuTrigger className="flex h-full w-full min-h-[40px]">
+                          {event ? (
+                            <CalendarEventItem
+                              event={event}
+                              onClick={onEventClick}
+                              isCompact={true}
+                              isDraggable={true}
+                              onDragStart={handleDragStart}
+                            />
+                          ) : null}
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          {event ? (
+                            <>
+                              <ContextMenuItem 
+                                onClick={() => onEventClick && onEventClick(event)}
+                                className="flex items-center gap-2"
+                              >
+                                <Edit className="h-4 w-4" />
+                                Edit Shift
+                              </ContextMenuItem>
+                              <ContextMenuItem 
+                                onClick={() => {
+                                  if (onEventDelete) {
+                                    addHistoryEntry("delete", event as Shift);
+                                    onEventDelete(event.id);
+                                    toast.success("Shift deleted");
+                                  }
+                                }}
+                                className="flex items-center gap-2 text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete Shift
+                              </ContextMenuItem>
+                            </>
+                          ) : (
+                            <ContextMenuItem 
+                              onClick={() => {
+                                if (onEventCreate) {
+                                  onEventCreate(counter.id, slot);
+                                }
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Add Shift
+                            </ContextMenuItem>
+                          )}
+                        </ContextMenuContent>
+                      </ContextMenu>
                     </TableCell>
                   );
                 })}

@@ -9,11 +9,17 @@ import {
   TableBody, 
   TableCell 
 } from '@/components/ui/table';
-import { HistoryEntry, getHistoryEntries } from '@/utils/historyHelpers';
+import { HistoryEntry, getHistoryEntries, undoLastAction } from '@/utils/historyHelpers';
 import { Badge } from '@/components/ui/badge';
-import { Clock, History } from 'lucide-react';
+import { Clock, History, Undo } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
-export function HistoryView() {
+interface HistoryViewProps {
+  onUndoAction?: (entry: HistoryEntry) => void;
+}
+
+export function HistoryView({ onUndoAction }: HistoryViewProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   
   useEffect(() => {
@@ -27,6 +33,22 @@ export function HistoryView() {
     
     return () => clearInterval(interval);
   }, []);
+  
+  const handleUndo = (entry: HistoryEntry) => {
+    if (onUndoAction) {
+      onUndoAction(entry);
+    } else {
+      // If no callback is provided, we'll handle undo directly
+      const result = undoLastAction();
+      if (result.success) {
+        toast.success("Action undone successfully");
+        // Refresh the history
+        setHistory(getHistoryEntries());
+      } else {
+        toast.error("Failed to undo action");
+      }
+    }
+  };
   
   if (history.length === 0) {
     return (
@@ -57,6 +79,7 @@ export function HistoryView() {
               <TableHead>Counter</TableHead>
               <TableHead>Action</TableHead>
               <TableHead className="hidden md:table-cell">Details</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -90,6 +113,17 @@ export function HistoryView() {
                 </TableCell>
                 <TableCell className="hidden md:table-cell text-muted-foreground">
                   {entry.details}
+                </TableCell>
+                <TableCell>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleUndo(entry)}
+                    className="h-8 w-8 p-0"
+                    title="Undo this action"
+                  >
+                    <Undo className="h-4 w-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
