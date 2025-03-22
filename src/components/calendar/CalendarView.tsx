@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { MonthView } from '@/components/calendar/MonthView';
 import { DayView } from '@/components/calendar/DayView';
@@ -63,6 +62,12 @@ export function CalendarView({ className }: CalendarViewProps) {
     }
   };
   
+  // Handle event update from drag-and-drop
+  const handleEventUpdate = (updatedEvent: CalendarEvent) => {
+    const updatedShift = updatedEvent as Shift;
+    setShifts(shifts.map(s => s.id === updatedShift.id ? updatedShift : s));
+  };
+  
   // Handle shift click
   const handleShiftClick = (shift: Shift) => {
     setSelectedShift(shift);
@@ -104,6 +109,7 @@ export function CalendarView({ className }: CalendarViewProps) {
                 events={shifts as CalendarEvent[]}
                 onEventClick={handleShiftClick as (event: CalendarEvent) => void}
                 transitionState={shouldAnimateView ? 'from' : 'to'}
+                onEventUpdate={handleEventUpdate}
               />
             );
           default:

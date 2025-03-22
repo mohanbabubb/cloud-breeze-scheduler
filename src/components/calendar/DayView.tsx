@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { getTransitionClasses } from '@/utils/animations';
 import { SAMPLE_COUNTERS, Shift } from '@/utils/rosterHelpers';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { toast } from 'sonner';
 
 interface DayViewProps {
   currentDate: Date;
@@ -14,6 +15,7 @@ interface DayViewProps {
   onEventClick?: (event: CalendarEvent) => void;
   className?: string;
   transitionState?: 'from' | 'to';
+  onEventUpdate?: (updatedEvent: CalendarEvent) => void;
 }
 
 export function DayView({
@@ -21,10 +23,12 @@ export function DayView({
   events,
   onEventClick,
   className,
-  transitionState = 'to'
+  transitionState = 'to',
+  onEventUpdate
 }: DayViewProps) {
   const [dayEvents, setDayEvents] = useState<CalendarEvent[]>([]);
   const [timeSlots, setTimeSlots] = useState<Date[]>([]);
+  const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
   
   // Generate time slots for every 45 minutes
   useEffect(() => {
@@ -67,6 +71,56 @@ export function DayView({
     });
   };
   
+  const handleDragStart = (e: React.DragEvent, event: CalendarEvent) => {
+    setDraggedEvent(event);
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+  
+  const handleDrop = (e: React.DragEvent, counterId: string, timeSlot: Date) => {
+    e.preventDefault();
+    
+    if (!draggedEvent) return;
+    
+    try {
+      // Calculate new start and end times
+      const slotTime = new Date(timeSlot);
+      const eventData = JSON.parse(e.dataTransfer.getData('application/json')) as CalendarEvent;
+      const originalEvent = events.find(event => event.id === eventData.id);
+      
+      if (!originalEvent) return;
+      
+      const originalStart = new Date(originalEvent.start);
+      const originalEnd = new Date(originalEvent.end);
+      const duration = originalEnd.getTime() - originalStart.getTime();
+      
+      // Create new start and end times based on the drop target slot
+      const newStart = new Date(slotTime);
+      const newEnd = new Date(newStart.getTime() + duration);
+      
+      // Create updated event
+      const updatedEvent: CalendarEvent = {
+        ...originalEvent,
+        start: newStart,
+        end: newEnd,
+        ...(originalEvent as Shift).counterId ? { counterId } : {}
+      };
+      
+      // Update the event through callback
+      if (onEventUpdate) {
+        onEventUpdate(updatedEvent);
+        toast.success("Shift updated successfully");
+      }
+    } catch (error) {
+      console.error("Error updating shift:", error);
+      toast.error("Failed to update shift");
+    } finally {
+      setDraggedEvent(null);
+    }
+  };
+  
   return (
     <div 
       className={cn(
@@ -80,7 +134,7 @@ export function DayView({
           {format(currentDate, 'EEEE, MMMM d, yyyy')}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Counter schedule view (45-minute intervals)
+          Counter schedule view (45-minute intervals) - Drag shifts to update time or counter
         </p>
       </div>
       
@@ -110,12 +164,22 @@ export function DayView({
                 {timeSlots.map((slot, index) => {
                   const event = findEvent(counter.id, slot);
                   return (
-                    <TableCell key={index} className="p-1 border-l">
+                    <TableCell 
+                      key={index} 
+                      className={cn(
+                        "p-1 border-l min-h-[40px]",
+                        !event && "hover:bg-muted/50 transition-colors"
+                      )}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, counter.id, slot)}
+                    >
                       {event ? (
                         <CalendarEventItem
                           event={event}
                           onClick={onEventClick}
                           isCompact={true}
+                          isDraggable={true}
+                          onDragStart={handleDragStart}
                         />
                       ) : null}
                     </TableCell>
