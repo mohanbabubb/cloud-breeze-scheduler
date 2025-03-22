@@ -13,6 +13,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { Plus, Edit, Trash2, Undo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { addHistoryEntry, getLastHistoryEntry, undoLastAction } from '@/utils/historyHelpers';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface DayViewProps {
   currentDate: Date;
@@ -78,9 +79,9 @@ export function DayView({
     setColumnWidth(widths[value[0]]);
   };
   
-  // Find event for a specific counter and time slot
-  const findEvent = (counterId: string, timeSlot: Date) => {
-    return dayEvents.find(event => {
+  // Find events for a specific counter and time slot (potentially multiple events)
+  const findEvents = (counterId: string, timeSlot: Date): Shift[] => {
+    return dayEvents.filter(event => {
       const shift = event as Shift;
       if (shift.counterId !== counterId) return false;
       
@@ -95,23 +96,22 @@ export function DayView({
         (slotEnd > eventStart && slotEnd <= eventEnd) ||
         (eventStart >= slotTime && eventStart < slotEnd)
       );
-    });
+    }) as Shift[];
   };
   
   // Check if there's already an event for this counter and time slot from a different employee
   const hasConflict = (counterId: string, timeSlot: Date, currentEvent?: CalendarEvent) => {
-    const existingEvent = findEvent(counterId, timeSlot);
+    const existingEvents = findEvents(counterId, timeSlot);
     
-    if (!existingEvent || !currentEvent) return false;
+    if (existingEvents.length === 0 || !currentEvent) return false;
     
-    // If it's the same event, there's no conflict
-    if (existingEvent.id === currentEvent.id) return false;
-    
-    const existingShift = existingEvent as Shift;
+    // Check against all existing events
     const currentShift = currentEvent as Shift;
     
-    // If they're from different employees, there's a conflict
-    return existingShift.employeeId !== currentShift.employeeId;
+    return existingEvents.some(existingShift => 
+      existingShift.id !== currentShift.id && 
+      existingShift.employeeId !== currentShift.employeeId
+    );
   };
   
   const handleDragStart = (e: React.DragEvent, event: CalendarEvent) => {
@@ -151,10 +151,9 @@ export function DayView({
         ...(originalEvent as Shift).counterId ? { counterId } : {}
       };
       
-      // Check for conflicts
+      // Check for conflicts - now we'll allow conflicts but warn about them
       if (hasConflict(counterId, timeSlot, originalEvent)) {
-        toast.error("Cannot assign: Another employee is already assigned to this counter at this time");
-        return;
+        toast.warning("Note: Another employee is also assigned to this counter at this time");
       }
       
       // Update the event through callback
@@ -250,105 +249,120 @@ export function DayView({
         </div>
       </div>
       
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-40">Counter</TableHead>
-              {timeSlots.map((slot, index) => (
-                <TableHead 
-                  key={index} 
-                  className="text-center"
-                  style={{ minWidth: `${columnWidth}px` }}
-                >
-                  {format(slot, 'HH:mm')}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {SAMPLE_COUNTERS.map(counter => (
-              <TableRow key={counter.id}>
-                <TableCell className="font-medium">
-                  <div>
-                    <div className="font-semibold">{counter.name}</div>
-                    {counter.description && (
-                      <div className="text-xs text-muted-foreground">{counter.description}</div>
-                    )}
-                  </div>
-                </TableCell>
-                {timeSlots.map((slot, index) => {
-                  const event = findEvent(counter.id, slot);
-                  return (
-                    <TableCell 
-                      key={index} 
-                      className={cn(
-                        "p-1 border-l min-h-[40px]",
-                        !event && "hover:bg-muted/50 transition-colors"
+      {/* Add horizontal scrollbar at the top */}
+      <ScrollArea className="w-full" orientation="horizontal">
+        <div className="overflow-x-auto min-w-max">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-40 sticky left-0 z-20 bg-background">Counter</TableHead>
+                {timeSlots.map((slot, index) => (
+                  <TableHead 
+                    key={index} 
+                    className="text-center"
+                    style={{ minWidth: `${columnWidth}px` }}
+                  >
+                    {format(slot, 'HH:mm')}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {SAMPLE_COUNTERS.map(counter => (
+                <TableRow key={counter.id}>
+                  <TableCell className="font-medium sticky left-0 z-10 bg-background">
+                    <div>
+                      <div className="font-semibold">{counter.name}</div>
+                      {counter.description && (
+                        <div className="text-xs text-muted-foreground">{counter.description}</div>
                       )}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, counter.id, slot)}
-                      style={{ minWidth: `${columnWidth}px` }}
-                    >
-                      <ContextMenu>
-                        <ContextMenuTrigger className="flex h-full w-full min-h-[40px]">
-                          {event ? (
-                            <CalendarEventItem
-                              event={event}
-                              onClick={onEventClick}
-                              isCompact={true}
-                              isDraggable={true}
-                              onDragStart={handleDragStart}
-                            />
-                          ) : null}
-                        </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          {event ? (
-                            <>
-                              <ContextMenuItem 
-                                onClick={() => onEventClick && onEventClick(event)}
-                                className="flex items-center gap-2"
-                              >
-                                <Edit className="h-4 w-4" />
-                                Edit Shift
-                              </ContextMenuItem>
+                    </div>
+                  </TableCell>
+                  {timeSlots.map((slot, index) => {
+                    const events = findEvents(counter.id, slot);
+                    return (
+                      <TableCell 
+                        key={index} 
+                        className={cn(
+                          "p-1 border-l min-h-[60px]",
+                          events.length === 0 && "hover:bg-muted/50 transition-colors"
+                        )}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, counter.id, slot)}
+                        style={{ minWidth: `${columnWidth}px` }}
+                      >
+                        <ContextMenu>
+                          <ContextMenuTrigger className="flex h-full w-full min-h-[60px]">
+                            {events.length > 0 ? (
+                              <div className={cn(
+                                "w-full h-full flex flex-col gap-1", 
+                                events.length > 1 ? "justify-start" : "justify-center"
+                              )}>
+                                {events.map((event) => (
+                                  <CalendarEventItem
+                                    key={event.id}
+                                    event={event}
+                                    onClick={onEventClick}
+                                    isCompact={true}
+                                    isDraggable={true}
+                                    onDragStart={handleDragStart}
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            {events.length > 0 ? (
+                              <>
+                                {events.map((event) => (
+                                  <React.Fragment key={event.id}>
+                                    <ContextMenuItem 
+                                      onClick={() => onEventClick && onEventClick(event)}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                      Edit {event.title.split(' - ')[0]}'s Shift
+                                    </ContextMenuItem>
+                                    <ContextMenuItem 
+                                      onClick={() => {
+                                        if (onEventDelete) {
+                                          addHistoryEntry("delete", event);
+                                          onEventDelete(event.id);
+                                          toast.success("Shift deleted");
+                                        }
+                                      }}
+                                      className="flex items-center gap-2 text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Delete {event.title.split(' - ')[0]}'s Shift
+                                    </ContextMenuItem>
+                                  </React.Fragment>
+                                ))}
+                              </>
+                            ) : (
                               <ContextMenuItem 
                                 onClick={() => {
-                                  if (onEventDelete) {
-                                    addHistoryEntry("delete", event as Shift);
-                                    onEventDelete(event.id);
-                                    toast.success("Shift deleted");
+                                  if (onEventCreate) {
+                                    onEventCreate(counter.id, slot);
                                   }
                                 }}
-                                className="flex items-center gap-2 text-destructive"
+                                className="flex items-center gap-2"
                               >
-                                <Trash2 className="h-4 w-4" />
-                                Delete Shift
+                                <Plus className="h-4 w-4" />
+                                Add Shift
                               </ContextMenuItem>
-                            </>
-                          ) : (
-                            <ContextMenuItem 
-                              onClick={() => {
-                                if (onEventCreate) {
-                                  onEventCreate(counter.id, slot);
-                                }
-                              }}
-                              className="flex items-center gap-2"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Add Shift
-                            </ContextMenuItem>
-                          )}
-                        </ContextMenuContent>
-                      </ContextMenu>
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                            )}
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

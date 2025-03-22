@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { CalendarView } from '@/components/calendar/CalendarView';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function CalendarPage() {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -19,7 +20,7 @@ export default function CalendarPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       
-      <main className="flex-1 px-4 sm:px-6 pt-20 pb-12">
+      <main className="flex-1 px-4 sm:px-6 pt-20 pb-12 overflow-hidden">
         <div className="max-w-6xl mx-auto mb-6">
           <h1 className="text-3xl font-bold">Staff Roster Scheduler</h1>
           <p className="text-muted-foreground mt-1">
@@ -27,12 +28,14 @@ export default function CalendarPage() {
           </p>
         </div>
         
-        <div className={cn(
-          "w-full transition-all duration-500",
-          isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-        )}>
-          <CalendarView />
-        </div>
+        <ScrollArea className="h-[calc(100vh-200px)]">
+          <div className={cn(
+            "w-full transition-all duration-500",
+            isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          )}>
+            <CalendarView />
+          </div>
+        </ScrollArea>
       </main>
       
       <footer className="border-t py-6">
