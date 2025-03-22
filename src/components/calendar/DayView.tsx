@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { format, isSameDay, setHours, setMinutes, addMinutes } from 'date-fns';
 import { CalendarEvent } from '@/utils/calendarHelpers';
@@ -42,13 +41,11 @@ export function DayView({
   const [columnWidth, setColumnWidth] = useState(100);
   const [timeInterval, setTimeInterval] = useState(45); // Default 45 minutes
   
-  // Generate time slots based on selected interval
   useEffect(() => {
     const slots: Date[] = [];
     const startOfDay = new Date(currentDate);
     startOfDay.setHours(0, 0, 0, 0);
     
-    // Calculate how many slots we need based on the interval
     const minutesInDay = 24 * 60;
     const numSlots = Math.ceil(minutesInDay / timeInterval);
     
@@ -58,7 +55,6 @@ export function DayView({
     
     setTimeSlots(slots);
     
-    // Filter events for the current day
     const filteredEvents = events.filter(event => 
       isSameDay(event.start, currentDate)
     );
@@ -66,20 +62,16 @@ export function DayView({
     setDayEvents(filteredEvents);
   }, [currentDate, events, timeInterval]);
   
-  // Calculate time interval based on slider value
   const handleTimeIntervalChange = (value: number[]) => {
     const intervals = [15, 30, 45, 60, 120, 240, 480]; // 15min, 30min, 45min, 1hr, 2hr, 4hr, 8hr
     const selectedInterval = intervals[value[0]];
     setTimeInterval(selectedInterval);
     
-    // Adjust column width based on the interval
-    // Larger intervals should have wider columns
     const baseWidth = 60;
     const widths = [baseWidth, baseWidth * 1.2, baseWidth * 1.5, baseWidth * 2, baseWidth * 3, baseWidth * 4, baseWidth * 5];
     setColumnWidth(widths[value[0]]);
   };
   
-  // Find events for a specific counter and time slot (potentially multiple events)
   const findEvents = (counterId: string, timeSlot: Date): Shift[] => {
     return dayEvents.filter(event => {
       const shift = event as Shift;
@@ -90,7 +82,6 @@ export function DayView({
       const slotTime = new Date(timeSlot);
       const slotEnd = addMinutes(slotTime, timeInterval);
       
-      // Check if the time slot overlaps with the event
       return (
         (slotTime >= eventStart && slotTime < eventEnd) ||
         (slotEnd > eventStart && slotEnd <= eventEnd) ||
@@ -99,13 +90,11 @@ export function DayView({
     }) as Shift[];
   };
   
-  // Check if there's already an event for this counter and time slot from a different employee
   const hasConflict = (counterId: string, timeSlot: Date, currentEvent?: CalendarEvent) => {
     const existingEvents = findEvents(counterId, timeSlot);
     
     if (existingEvents.length === 0 || !currentEvent) return false;
     
-    // Check against all existing events
     const currentShift = currentEvent as Shift;
     
     return existingEvents.some(existingShift => 
@@ -128,7 +117,6 @@ export function DayView({
     if (!draggedEvent) return;
     
     try {
-      // Calculate new start and end times
       const slotTime = new Date(timeSlot);
       const eventData = JSON.parse(e.dataTransfer.getData('application/json')) as CalendarEvent;
       const originalEvent = events.find(event => event.id === eventData.id);
@@ -139,11 +127,9 @@ export function DayView({
       const originalEnd = new Date(originalEvent.end);
       const duration = originalEnd.getTime() - originalStart.getTime();
       
-      // Create new start and end times based on the drop target slot
       const newStart = new Date(slotTime);
       const newEnd = new Date(newStart.getTime() + duration);
       
-      // Create updated event
       const updatedEvent: CalendarEvent = {
         ...originalEvent,
         start: newStart,
@@ -151,14 +137,11 @@ export function DayView({
         ...(originalEvent as Shift).counterId ? { counterId } : {}
       };
       
-      // Check for conflicts - now we'll allow conflicts but warn about them
       if (hasConflict(counterId, timeSlot, originalEvent)) {
         toast.warning("Note: Another employee is also assigned to this counter at this time");
       }
       
-      // Update the event through callback
       if (onEventUpdate) {
-        // Store the original event for history tracking
         addHistoryEntry("update", originalEvent as Shift, updatedEvent as Shift);
         onEventUpdate(updatedEvent);
         toast.success("Shift updated successfully");
@@ -219,8 +202,8 @@ export function DayView({
             <div className="flex flex-col flex-1 md:w-64">
               <span className="text-sm mb-1">Time interval:</span>
               <Slider
-                defaultValue={[2]} // Default to 45 minutes (index 2)
-                max={6} // 7 options from 15min to 8hr
+                defaultValue={[2]}
+                max={6}
                 step={1}
                 onValueChange={handleTimeIntervalChange}
                 className="my-2"
@@ -249,8 +232,7 @@ export function DayView({
         </div>
       </div>
       
-      {/* Add horizontal scrollbar at the top */}
-      <ScrollArea className="w-full" orientation="horizontal">
+      <ScrollArea className="w-full">
         <div className="overflow-x-auto min-w-max">
           <Table>
             <TableHeader>
@@ -315,7 +297,7 @@ export function DayView({
                             {events.length > 0 ? (
                               <>
                                 {events.map((event) => (
-                                  <React.Fragment key={event.id}>
+                                  <div key={event.id}>
                                     <ContextMenuItem 
                                       onClick={() => onEventClick && onEventClick(event)}
                                       className="flex items-center gap-2"
@@ -336,7 +318,7 @@ export function DayView({
                                       <Trash2 className="h-4 w-4" />
                                       Delete {event.title.split(' - ')[0]}'s Shift
                                     </ContextMenuItem>
-                                  </React.Fragment>
+                                  </div>
                                 ))}
                               </>
                             ) : (
